@@ -8,6 +8,8 @@
 
 🌐 **[Live site](https://jaewoo356.github.io/RecSys_DSL/)**  ·  📑 **[Slides (PDF)](presentation/DSL_Recsys.pdf)**
 
+[![CI](https://github.com/jaewoo356/RecSys_DSL/actions/workflows/ci.yml/badge.svg)](https://github.com/jaewoo356/RecSys_DSL/actions/workflows/ci.yml)
+
 </div>
 
 <div align="center">
@@ -45,12 +47,14 @@ The final step — mood vector → cosine similarity → Top-K — runs on the *
 just `pandas` + `numpy`:
 
 ```bash
-pip install pandas numpy
-python scripts/recommend_demo.py
-python scripts/recommend_demo.py -q "rainy day study session" -k 5
+pip install -e ".[dev]"     # or just: pip install pandas numpy
+make demo                    # python scripts/recommend_demo.py  (-q "..." -k N)
+make eval                    # reproducible metrics + baselines  (see Evaluation)
+make test                    # 12 unit tests
 ```
 
-The only mock is text→mood (the real project uses fine-tuned BERT); the ranking logic is the real thing.
+The only mock is text→mood (the real project uses fine-tuned BERT); the cosine ranking is the real thing,
+and lives in the importable [`recsys/`](recsys/) package.
 
 ---
 
@@ -94,16 +98,43 @@ notebooks).
 
 ---
 
+## Evaluation
+
+`make eval` (or `python scripts/evaluate.py`) runs a **seeded, reproducible** evaluation on the 1,142
+labeled songs, scoring the cosine recommender against **random** and **popularity** baselines:
+
+| Protocol | metric | cosine | popularity | random |
+|---|---:|---:|---:|---:|
+| **Genre retrieval** — *non-circular: relevance = same Melon genre, a label the system never sees* | P@5 | **0.117** | 0.102 | 0.107 |
+| **Mood overlap** (leave-one-out, ≥2 shared moods) | nDCG@10 | **1.000** | 0.960 | 0.520 |
+
+**Read honestly:** within the mood space the recommender is internally consistent and clears the
+baselines — but on an *independent* signal (genre) it sits **barely above chance**, i.e. it matches
+*mood*, not genre. There's no human-judged ground truth for "the right playlist," so that's the ceiling
+of what's measurable here. Data quality also limits it: **934 / 2,076 songs (45%) are unlabeled**, labels
+are LLM-generated with no human validation, and they skew to a few moods.
+
+> ⚠️ The original training notebooks have real bugs (e.g. the BERT eval loop `break`s before computing
+> any metric; the audio probe uses the wrong loss; the split is unseeded). They're documented with
+> drop-in fixes in **[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)**. The clean code in [`recsys/`](recsys/) (seeded,
+> tested, repo-root paths) is what the demo and evaluator use.
+
+---
+
 ## Repository structure
 
 ```
-├── README.md · LICENSE · requirements.txt · requirements-jukemir.txt
-├── presentation/   DSL_Recsys.pdf            ← the project's source presentation
-├── notebooks/      01–07                      ← the pipeline, in order
-├── scripts/        recommend_demo.py          ← runnable demo (no weights)
+├── README.md · LICENSE · KNOWN_ISSUES.md · Makefile · pyproject.toml
+├── requirements.txt · requirements-jukemir.txt
+├── recsys/         the package: data · recommend · metrics · eval · seed · config
+├── scripts/        recommend_demo.py · evaluate.py      ← runnable, no weights
+├── tests/          pytest suite (metrics, recommender, eval)
+├── notebooks/      01–07                                 ← the pipeline, in order
 ├── src/            representation.py + SETUP_JUKEMIR.md
-├── data/           metadata/ + mood_labels/   ← small CSVs + data dictionary
-└── docs/           the GitHub Pages site (+ architecture.svg, slides)
+├── data/           metadata/ + mood_labels/              ← small CSVs + data dictionary
+├── presentation/   DSL_Recsys.pdf                        ← the source presentation
+├── docs/           the GitHub Pages site (+ architecture.svg, slides)
+└── .github/        workflows: ci.yml (tests) · pages.yml (site)
 ```
 
 ---
@@ -126,8 +157,11 @@ environment** — see [`src/SETUP_JUKEMIR.md`](src/SETUP_JUKEMIR.md).
 
 ## Limitations
 
-Mood labels are LLM-generated (no human ground truth); the audio library is bounded by Melon Top-100; and
-the text and audio branches are trained independently, meeting only at the similarity step.
+Mood labels are LLM-generated (no human ground truth) and cover only 55% of songs; the audio library is
+bounded by Melon Top-100; the text and audio branches are trained independently, meeting only at the
+similarity step; and on an independent signal the recommender is barely above chance (see
+[Evaluation](#evaluation)). Training-code bugs and fixes are catalogued in
+[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
 
 ---
 
