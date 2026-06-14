@@ -1,0 +1,17 @@
+# ============================================================================
+# JukeMIR / OpenAI Jukebox — audio feature extraction (Task 3, notebook 06).
+# Use a SEPARATE Python 3.8 environment: these pins are older and intentionally
+# conflict with the main requirements.txt. Full guide: src/SETUP_JUKEMIR.md
+#   conda create -n jukemir python=3.8 -y && conda activate jukemir
+#   pip install -r requirements-jukemir.txt
+# Then install Jukebox itself from upstream (see SETUP_JUKEMIR.md, step 2).
+# Requires a single GPU with >= 12 GB VRAM.
+# ============================================================================
+
+torch                       # install the CUDA build matching your GPU
+fire==0.1.3
+tqdm>=4.45.0
+soundfile==0.10.3.post1
+unidecode==1.1.1
+numba==0.48.0
+librosa==0.7.2

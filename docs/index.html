@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Playlist — Mood-Based Music Recommendation</title>
+<meta name="description" content="DSL 24-1 Modeling Project: recommend a playlist from a free-text mood, using BERT (text→mood), Gemini (song→mood), and JukeMIR (audio→representation).">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="wrap">
+    <div class="brand">🎵 Music<span>Playlist</span></div>
+    <div class="links">
+      <a href="#overview">Overview</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#dataset">Dataset</a>
+      <a href="#tasks">Tasks</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#results">Results</a>
+      <a href="#team">Team</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="eyebrow">DSL 24-1 Modeling Project</div>
+  <h1>Music <span class="accent">Playlist</span></h1>
+  <p class="lead">Tell us how you feel, in your own words — get a playlist that matches the mood.</p>
+  <div class="player">⏮ ⏪ ⏯ ⏩ ⏭</div>
+  <div class="btns">
+    <a class="btn primary" href="#overview">Explore the project</a>
+    <a class="btn ghost" href="DSL_Recsys.pdf">📑 Full presentation</a>
+  </div>
+</header>
+
+<!-- OVERVIEW -->
+<section id="overview">
+  <div class="wrap">
+    <div class="section-num">01 · Intro</div>
+    <h2>Overview</h2>
+    <p class="tagline">A recommendation system that turns a free-text feeling into a mood-matched playlist.</p>
+    <p>Instead of asking you to pick a genre, <strong>Music Playlist</strong> lets you type how you feel or
+       what you're doing — like <em>"when you got rejected by a girl"</em> or
+       <em>"I need to get motivated to exercise"</em> — and returns songs whose <strong>mood</strong> fits.</p>
+    <p>The guiding intuition: <strong>a song's tempo and register define its genre, and its genre is
+       essentially its mood.</strong> If we can read the mood from a user's text <em>and</em> know every
+       song's mood, a simple <strong>similarity match</strong> yields the playlist.</p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="tag">Task 1</div>
+        <h3>Text → Mood</h3>
+        <p>A fine-tuned <strong>BERT</strong> reads the user's free text into a 15-dim mood vector.</p>
+      </div>
+      <div class="card">
+        <div class="tag">Task 2</div>
+        <h3>Song → Mood</h3>
+        <p><strong>Gemini</strong> labels each song's mood from its text description.</p>
+      </div>
+      <div class="card">
+        <div class="tag">Task 3</div>
+        <h3>Audio → Mood</h3>
+        <p><strong>JukeMIR</strong> (OpenAI Jukebox) reads mood from the audio itself.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MOTIVATION + PIPELINE -->
+<section id="pipeline">
+  <div class="wrap">
+    <div class="section-num">01 · Motivation &amp; Goal</div>
+    <h2>How it works</h2>
+    <p class="tagline">Two branches that meet in a shared "mood" space.</p>
+    <p>People increasingly listen to <strong>playlists</strong> — many songs bundled under a single vibe.
+       The unit of consumption has become the <strong>mood</strong>, not the song. So we asked:</p>
+    <blockquote class="lead-quote">Can we build a playlist directly from the situational <em>"Mood"</em> a user is in?</blockquote>
+
+    <figure>
+      <img src="assets/slides/pipeline_goal.png" alt="Pipeline: user text → model → mood; audio dataset + mood; similarity → playlist">
+      <figcaption>The user branch and the audio branch both produce a mood vector; similarity ranks the songs.</figcaption>
+    </figure>
+
+    <p>Both sides speak the same language — a <strong>mood vector</strong> over 15 labels:</p>
+    <div class="chips">
+      <span class="chip">Happy</span><span class="chip">Sad</span><span class="chip">Energized</span>
+      <span class="chip">Relaxed</span><span class="chip">Nostalgic</span><span class="chip">Romantic</span>
+      <span class="chip">Angry</span><span class="chip">Focused</span><span class="chip">Inspired</span>
+      <span class="chip">Melancholic</span><span class="chip">Peaceful</span><span class="chip">Anxious</span>
+      <span class="chip">Confident</span><span class="chip">Dreamy</span><span class="chip">Lonely</span>
+    </div>
+  </div>
+</section>
+
+<!-- DATASET -->
+<section id="dataset">
+  <div class="wrap">
+    <div class="section-num">02 · Dataset</div>
+    <h2>Dataset</h2>
+    <p class="tagline">2,075 songs across 12 genres — plus mood labels we had to create ourselves.</p>
+
+    <h3>Audio — crawled from Melon &amp; YouTube</h3>
+    <p>We crawled Melon's domestic &amp; international genre <strong>Top-100</strong> charts, then used the
+       titles + artists to search YouTube and download audio as <code>.wav</code> — <strong>2,075 songs in
+       12 genres</strong>.</p>
+    <figure>
+      <img src="assets/slides/audio_data.png" alt="Audio data collection from Melon top 100 and YouTube">
+      <figcaption>Melon genre charts → YouTube search → <code>.wav</code> extraction.</figcaption>
+    </figure>
+
+    <h3>Mood labels — generated with Gemini</h3>
+    <p>No off-the-shelf dataset paired <em>text with mood</em> or <em>songs with mood</em>. We generated both
+       with the <strong>Gemini</strong> LLM — which is exactly what Tasks 1 and 2 are about. An earlier
+       288-adjective taxonomy was condensed to the <strong>15 moods</strong> above.</p>
+  </div>
+</section>
+
+<!-- TASKS -->
+<section id="tasks">
+  <div class="wrap">
+    <div class="section-num">03 · Models &amp; Tasks</div>
+    <h2>The three tasks</h2>
+    <p class="tagline">Read the user's mood, label every song's mood, and learn mood from the audio.</p>
+
+    <!-- Task 1 -->
+    <div class="task">
+      <span class="label">Task 1 — Text → Mood (BERT)</span>
+      <p>Classify a user's free-text situation into mood(s). Since no <em>(text, mood)</em> data existed, we
+         prompted <strong>Gemini</strong> to synthesize realistic, lazy-sounding search prompts with their
+         implied moods, then fine-tuned <strong>BERT</strong> as a multi-label classifier.</p>
+      <figure>
+        <img src="assets/slides/task1_bert.png" alt="Task 1: TEXT → BERT → mood probabilities">
+      </figure>
+      <pre><code>class BERTClass(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.l1 = transformers.BertModel.from_pretrained('bert-base-uncased')
+        self.l2 = torch.nn.Dropout(0.3)
+        self.l3 = torch.nn.Linear(768, 15)      # 15 moods, multi-label
+
+    def forward(self, ids, mask, token_type_ids):
+        _, pooled = self.l1(ids, attention_mask=mask,
+                            token_type_ids=token_type_ids, return_dict=False)
+        return self.l3(self.l2(pooled))</code></pre>
+      <p><strong>Result:</strong> <em>"여자친구한테 차였을 때 들기 좋은 노래 추천해줘"</em> → <strong>Lonely, Romantic</strong> ✅</p>
+    </div>
+
+    <!-- Task 2 -->
+    <div class="task">
+      <span class="label">Task 2 — Song → Mood (Gemini)</span>
+      <p>Give every song a mood vector. The raw metadata (title, singer) says nothing about mood, so we feed
+         each song's <strong>text description</strong> to Gemini and ask for a <code>0/1</code> flag per mood.</p>
+      <figure>
+        <img src="assets/slides/task2_gemini_mood.png" alt="Task 2: song description + Gemini → mood feature vector">
+        <figcaption>Description of "Dynamite" → <code>Happy = 1, Energized = 1</code>, everything else 0.</figcaption>
+      </figure>
+      <table>
+        <tr><th>Title</th><th>Singer</th><th>Mood</th></tr>
+        <tr><td>Love wins all</td><td>IU (아이유)</td><td>Sad, Romantic, Melancholic</td></tr>
+        <tr><td>Love me again</td><td>John Newman</td><td>Sad, Romantic, Lonely</td></tr>
+        <tr><td>Hello</td><td>Adele</td><td>Sad, Nostalgic, Melancholic, Lonely</td></tr>
+      </table>
+    </div>
+
+    <!-- Task 3 -->
+    <div class="task">
+      <span class="label">Task 3 — Audio → Representation (JukeMIR)</span>
+      <p>Learn a song's mood <strong>from the audio itself</strong>. We use <strong>JukeMIR</strong> —
+         representations from <strong>OpenAI's Jukebox</strong> (<code>VQ-VAE + Transformer</code>) repurposed
+         for Music Information Retrieval.</p>
+      <figure>
+        <img src="assets/slides/jukebox_architecture.png" alt="Jukebox VQ-VAE + Transformer architecture">
+        <figcaption>Jukebox encodes raw audio → discrete VQ-codes → transformer. We stop at the representation.</figcaption>
+      </figure>
+      <p>Our audio pipeline standardizes every song before feeding Jukebox:</p>
+      <ul class="clean">
+        <li>Convert audio to a spectrogram with <strong>librosa</strong></li>
+        <li>Split each song into 4 segments, take a random <strong>~25 s crop</strong> from each (≈ 23.77 s @ 44.1 kHz)</li>
+        <li>Pass all 4 crops through pretrained Jukebox → per-song tensor <strong><code>[4, 4800]</code></strong></li>
+        <li>A shallow probing head (Linear / LSTM / MLP / Conv1d / Transformer) maps 4800-dim → 15 moods</li>
+      </ul>
+      <figure>
+        <img src="assets/slides/jukemir_architecture.png" alt="Full JukeMIR model architecture">
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="wrap">
+    <div class="section-num">03 · Putting it together</div>
+    <h2>Full architecture</h2>
+    <p class="tagline">User text and song audio meet at a similarity match.</p>
+    <figure>
+      <img src="assets/architecture.svg" alt="System architecture diagram" style="background:#f3efe3">
+      <figcaption>The user branch (BERT) and song branch (JukeMIR + Gemini) converge at the similarity step.</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/slides/full_architecture.png" alt="Full model architecture from user text to top-K songs (from the presentation)">
+      <figcaption>The same architecture, as presented in the slides.</figcaption>
+    </figure>
+    <ol>
+      <li><strong>User text</strong> → BERT (Task 1) → mood probability vector</li>
+      <li><strong>Feature database</strong> holds every song's mood vector (Tasks 2 &amp; 3)</li>
+      <li>Compute <strong>similarity</strong> between the user vector and every song vector</li>
+      <li>Return the <strong>Top-K</strong> most similar songs as the playlist</li>
+    </ol>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results">
+  <div class="wrap">
+    <div class="section-num">04 · Result</div>
+    <h2>Results</h2>
+    <p class="tagline">Three real queries and the playlists the system returned.</p>
+    <div class="results">
+      <div class="result-card">
+        <div class="q">"When you got rejected by a girl"</div>
+        <ol>
+          <li>Double take — Dhruv</li>
+          <li>Love me again — John Newman</li>
+          <li>All of me — John Legend</li>
+          <li>I Choose You — UGK</li>
+          <li>Senorita — Shawn Mendes &amp; Camila Cabello</li>
+        </ol>
+      </div>
+      <div class="result-card">
+        <div class="q">"When you want to go to sleep"</div>
+        <ol>
+          <li>Ditto — NewJeans</li>
+          <li>Eleven — Khalid</li>
+          <li>Perfect Symphony — Ed Sheeran &amp; Andrea Bocelli</li>
+          <li>Warm on a Christmas Night — HONNE</li>
+        </ol>
+      </div>
+      <div class="result-card">
+        <div class="q">"I need to get motivated to exercise"</div>
+        <ol>
+          <li>305 to My City — Drake</li>
+          <li>Counting Stars — OneRepublic</li>
+          <li>Sleep Well Beast — The National</li>
+          <li>Sprinter — Dave &amp; Central Cee</li>
+          <li>Goodnight n Go — Ariana Grande</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIMITATIONS -->
+<section id="limitations">
+  <div class="wrap">
+    <div class="section-num">05 · Conclusion</div>
+    <h2>Limitations &amp; future work</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="tag">01</div>
+        <h3>Dataset limitation</h3>
+        <p>Mood labels are LLM-generated (no human ground truth); the library is bounded by Melon Top-100.</p>
+      </div>
+      <div class="card">
+        <div class="tag">02</div>
+        <h3>Feature mapping</h3>
+        <p>Collapsing rich audio + text into one 15-mood space loses nuance — the weakest link.</p>
+      </div>
+      <div class="card">
+        <div class="tag">03</div>
+        <h3>Model interaction</h3>
+        <p>The text and audio branches are trained independently and only meet at the similarity step.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER / TEAM -->
+<footer id="team">
+  <div class="section-num" style="color:var(--tan)">DSL 24-1 Modeling Project</div>
+  <h2 style="color:#fff; margin:6px 0 4px;">Team</h2>
+  <div class="team">
+    <span>김영호<small>10기</small></span>
+    <span>박태정<small>10기</small></span>
+    <span>신재우<small>10기</small></span>
+    <span>권구희<small>11기</small></span>
+  </div>
+  <div>
+    <a href="DSL_Recsys.pdf">📑 Full presentation (PDF)</a> &nbsp;·&nbsp;
+    <a href="../README.md">📄 Project README</a>
+  </div>
+  <div class="fine">Built with PyTorch · HuggingFace BERT · OpenAI Jukebox / JukeMIR · Gemini · librosa</div>
+</footer>
+
+</body>
+</html>

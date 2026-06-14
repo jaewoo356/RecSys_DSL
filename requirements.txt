@@ -1,0 +1,33 @@
+# ============================================================================
+# Core dependencies — text branch (BERT), audio probe, crawling & labeling.
+# Tested on Python 3.10 (Google Colab). Install with:  pip install -r requirements.txt
+# ----------------------------------------------------------------------------
+# NOTE: The JukeMIR feature-extraction step (notebook 06) needs OpenAI Jukebox,
+#       which pins OLDER, conflicting versions of librosa/numba. Run it in a
+#       SEPARATE environment — see src/SETUP_JUKEMIR.md.
+# ============================================================================
+
+# --- deep learning / models ---
+torch>=2.0
+transformers>=4.30        # BERT (bert-base-uncased), tokenizer
+scikit-learn>=1.2         # accuracy / F1 metrics
+
+# --- data ---
+pandas>=1.5
+numpy>=1.23
+tqdm>=4.45
+
+# --- audio (text branch / general; JukeMIR pins its own librosa, see setup) ---
+librosa>=0.10
+
+# --- mood labeling (Task 1 & 2 dataset generation) ---
+google-generativeai>=0.5  # Gemini
+
+# --- data collection (crawling) ---
+yt-dlp>=2024.0            # YouTube audio -> .wav
+selenium>=4.0            # YouTube URL search
+webdriver-manager>=4.0
+beautifulsoup4>=4.11
+
+# --- notebooks ---
+jupyter>=1.0
